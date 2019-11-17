@@ -5,8 +5,7 @@
 #gamesdb Links
 #https://thegamesdb.net/
 #https://api.thegamesdb.net/#/
-#
-#v2019-11-09
+#v2019-11-17
 #*****************************************************************************************************************************************
 
 
@@ -17,11 +16,10 @@
 #Local Paths
 $global:Path2DownloadDir = "E:\Downloads\thegamesdb\"
 $global:RegKeyStr = "HKCU:\SOFTWARE\retroPS_ScraperGamesDB"
-$global:Path2RomsDir = "D:\_GAMES\RetroPI\roms\";
+$global:Path2RomsDir = "D:\_GAMES\RetroPI\30 CopyToRetroPie\RetroPie\roms\";
 
 #gamesDBConfigs
-#$global:GamesDb_APIKey= "XXX"; # (PUBLIC KEY)
-$global:GamesDb_APIKey= "XXX"; # (PRIVATE KEY)
+$global:GamesDb_APIKey= "XXX"; 
 $global:GamesDbBaseUrl = "https://api.thegamesdb.net/"
 
 #*****************************************************************************************************************************************
@@ -40,6 +38,13 @@ $global:ht_APIDevelopers = $null;
 $global:ht_APIPublishers = $null;
 
 
+Class getGameNodeFromGamesListXMLResult
+{
+    [xml] $root = $null
+    [System.Xml.XmlElement] $matching_game_node = $null
+}
+
+
 # ****************************************************************************************************************************
 # HANDLE ERROR
 # ****************************************************************************************************************************
@@ -47,92 +52,6 @@ function HandleError([string] $ErrMsg)
 {
     Write-Host -foregroundcolor red -backgroundcolor black $ErrMsg
     Exit #Stop Execution of the script
-}
-
-# ****************************************************************************************************************************
-# Create Reg Keys to store some settings
-# ****************************************************************************************************************************
-function InitReg()
-{
-    Write-Host -foregroundcolor green -backgroundcolor black "InitReg()"
-    $retVal = Test-Path -Path $global:RegKeyStr
-
-     if ($retVal -eq $false)
-     {
-         New-Item -Path $global:RegKeyStr
-         New-ItemProperty -Path $global:RegKeyStr -Name "PlatformStr" -Value ""
-         New-ItemProperty -Path $global:RegKeyStr -Name "PlatformID" -Value ""
-         New-ItemProperty -Path $global:RegKeyStr -Name "Path2GamesListXML" -Value ""
-     }
-     else
-     {
-        $global:PlatformStr = Get-ItemPropertyValue -Path $global:RegKeyStr -Name "PlatformStr"
-        $global:PlatformID = Get-ItemPropertyValue -Path $global:RegKeyStr -Name "PlatformID"
-        $global:Path2GamesListXML = Get-ItemPropertyValue -Path $global:RegKeyStr -Name "Path2GamesListXML"
-     }
-}
-
-
-# ****************************************************************************************************************************
-# Create Base Directorys if they don't already exist
-# ****************************************************************************************************************************
-function InitDirs($platform)
-{
-    Write-Host -foregroundcolor green -backgroundcolor black "InitDirs() $platform"
-
-    $TargetDir = "$global:Path2DownloadDir" + "$platform\"
-    $retVal = Test-Path -LiteralPath  $TargetDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
-    if ($retVal -eq $false)
-    {
-        New-Item -ItemType Directory -Force -Path $TargetDir #Create the Dir
-    }
-
-    $global:Path2GamesMappingXML = $TargetDir + "gamesDBMapping.xml";
-    $retVal = Test-Path -LiteralPath  $global:Path2GamesMappingXML -PathType Leaf #LiteralPath is required to stop interpreting special characters like ![], etc.
-    if ($retVal -eq $false)
-    {
-       [xml] $xw = New-Object System.Xml.XmlDocument
-       $gameList_node = $xw.CreateElement("gameList")
-       $xw.AppendChild($gameList_node);
-       $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
-       $sw = New-Object System.IO.StreamWriter($global:Path2GamesMappingXML, $false, $utf8)#2nd arg indicates append
-       $xw.Save($sw);
-       $sw.Close();
-    }
-
-    #Download All Images here
-    $global:imageDir = $TargetDir + "m\"
-    $retVal = Test-Path -LiteralPath  $global:imageDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
-    if ($retVal -eq $false)
-    {
-        New-Item -ItemType Directory -Force -Path $imageDir #Create the Dir
-    }
-
-    #Download All Images here
-    $marqueeDir = $global:imageDir + "marquee\";
-    $retVal = Test-Path -LiteralPath  $marqueeDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
-    if ($retVal -eq $false)
-    {
-        New-Item -ItemType Directory -Force -Path $marqueeDir #Create the Dir
-    }
-
-    #Download All Images here
-    $coverDir = $global:imageDir + "cover\";
-    $retVal = Test-Path -LiteralPath  $coverDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
-    if ($retVal -eq $false)
-    {
-        New-Item -ItemType Directory -Force -Path $coverDir #Create the Dir
-    }
-
-
-    Set-Location -Path $TargetDir #Change Dir to Root of Platform
-
-    Write-Host -foregroundcolor green -backgroundcolor black "Scraper Starting downloading to:"
-    Write-Host -foregroundcolor green -backgroundcolor black $TargetDir
-    Write-Host
-
-
-return;
 }
 
 # ****************************************************************************************************************************
@@ -188,8 +107,89 @@ function uiSelect([string] $selectionStr, [string] $questionStr, [string] $gridT
 
 
 # ****************************************************************************************************************************
+# Create Reg Keys to store some settings
+# ****************************************************************************************************************************
+function InitReg()
+{
+    Write-Host -foregroundcolor green -backgroundcolor black "InitReg()"
+    $retVal = Test-Path -Path $global:RegKeyStr
+
+     if ($retVal -eq $false)
+     {
+         New-Item -Path $global:RegKeyStr
+         New-ItemProperty -Path $global:RegKeyStr -Name "PlatformStr" -Value ""
+         New-ItemProperty -Path $global:RegKeyStr -Name "PlatformID" -Value ""
+         New-ItemProperty -Path $global:RegKeyStr -Name "Path2GamesListXML" -Value ""
+     }
+     else
+     {
+        $global:PlatformStr = Get-ItemPropertyValue -Path $global:RegKeyStr -Name "PlatformStr"
+        $global:PlatformID = Get-ItemPropertyValue -Path $global:RegKeyStr -Name "PlatformID"
+        $global:Path2GamesListXML = Get-ItemPropertyValue -Path $global:RegKeyStr -Name "Path2GamesListXML"
+     }
+}
+
+
+# ****************************************************************************************************************************
+# Create Base Directorys if they don't already exist
+# ****************************************************************************************************************************
+function InitDirs()
+{
+    Write-Host -foregroundcolor green -backgroundcolor black "InitDirs() $global:PlatformStr"
+
+    $TargetDir = $global:Path2DownloadDir + $global:PlatformStr + "\"
+    $retVal = Test-Path -LiteralPath  $TargetDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
+    if ($retVal -eq $false)
+    {
+        New-Item -ItemType Directory -Force -Path $TargetDir #Create the Dir
+    }
+
+
+    #Download All Images here
+    $global:imageDir = $TargetDir + "m\"
+    $retVal = Test-Path -LiteralPath  $global:imageDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
+    if ($retVal -eq $false)
+    {
+        New-Item -ItemType Directory -Force -Path $imageDir #Create the Dir
+    }
+
+    #Download All marquee here
+    $marqueeDir = $global:imageDir + "marquee\";
+    $retVal = Test-Path -LiteralPath  $marqueeDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
+    if ($retVal -eq $false)
+    {
+        New-Item -ItemType Directory -Force -Path $marqueeDir #Create the Dir
+    }
+
+    #Download All cover here
+    $coverDir = $global:imageDir + "cover\";
+    $retVal = Test-Path -LiteralPath  $coverDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
+    if ($retVal -eq $false)
+    {
+        New-Item -ItemType Directory -Force -Path $coverDir #Create the Dir
+    }
+
+    #Set global path for $global:Path2GamesMappingXML
+    $romDir =Split-Path -Path $global:Path2GamesListXML
+    $global:Path2GamesMappingXML = $romDir + "\theGamesdbMapping.xml";
+
+
+    Set-Location -Path $TargetDir #Change Dir to Root of Platform Downloads Dir
+
+    Write-Host -foregroundcolor green -backgroundcolor black "Scraper Downloading to:"
+    Write-Host -foregroundcolor green -backgroundcolor black $TargetDir
+    Write-Host "Leaving InitDirs()";
+
+
+return;
+}
+
+
+
+# ****************************************************************************************************************************
 #http://thegamesdb.net/api/GetPlatformsList.php
 #Let user pick Platform so we can get Platform #
+#Writes selection to registry
 # ****************************************************************************************************************************
 function AksUserPlatform()
 {
@@ -247,6 +247,7 @@ function AksUserPlatform()
 
 # ****************************************************************************************************************************
 #Ask User to pick specific gameslist.xml out of roms folder. 
+#Saves setting in registry
 # ****************************************************************************************************************************
 function AskUserGamesListXML
 {
@@ -292,7 +293,432 @@ function AskUserGamesListXML
 }
 
 
+# ****************************************************************************************************************************
+# Creates the theGamesdbMapping.xml if it doesn't already exist
+# TODO: Open games list.xml add and remove nodes based on some key value for now it is path title.
+# ****************************************************************************************************************************
+function gamesDBMapping_Maintenance()
+{
+    Write-Host -foregroundcolor cyan -backgroundcolor black "Starting gamesDBMapping_Maintenance()"
 
+    #Does mapping xml exist yet? If not create empty mapping xml file
+    $retVal = Test-Path -LiteralPath  $global:Path2GamesMappingXML -PathType Leaf #LiteralPath is required to stop interpreting special characters like ![], etc.
+    if ($retVal -eq $false)
+    {
+       [xml] $xw = New-Object System.Xml.XmlDocument
+       $gameList_node = $xw.CreateElement("gameList")
+       $xw.AppendChild($gameList_node);
+       $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
+       $sw = New-Object System.IO.StreamWriter($global:Path2GamesMappingXML, $false, $utf8)#2nd arg indicates append
+       $xw.Save($sw);
+       $sw.Close();
+    }
+
+    #Lets do some validation on mapping xml next. Open it.
+    [xml] $xwm = $null
+    $xwm = Get-Content $global:Path2GamesMappingXML
+    if ($xwm -eq $null)
+    {
+        HandleError "Unable to open Path2GamesMappingXML xml file $global:Path2GamesMappingXML as xml"
+    }
+    
+    #Verify Path Keys are Unique in mapping.xml (No Duplicate Keys)
+    $htmp_pathKeys = @{}
+    Foreach($gameNode in $xwm.gameList.game)
+    {
+        $path = $gameNode.path;
+        if (!$htmp_pathKeys.ContainsKey($path))
+        {
+            $htmp_pathKeys.Add($path, $gameNode);
+        }
+        else
+        {
+            #$xwm.gameList.RemoveChild($gameNode);
+            HandleError "Duplicate Path detected in theGamesdbMapping.xml > $path" 
+        }
+    }
+
+    #Create HT of Path Keys in gameslist.xml to check for removals. HT must be used or way to slow!!!!
+    [xml] $xg = $null
+    $xg = Get-Content $global:Path2GamesListXML
+    if ($xg -eq $null)
+    {
+        HandleError "Unable to open results xml file $global:Path2GamesListXML as xml"
+    }
+
+    Write-Host -foregroundcolor green -backgroundcolor black $global:Path2GamesMappingXML "COUNT" $xwm.gameList.game.Count
+    Write-Host -foregroundcolor green -backgroundcolor black $global:Path2GamesListXML "COUNT" $xg.gameList.game.Count
+
+    if ($xwm.gameList.game.count -ne $xg.gameList.game.Count)
+    {
+        Write-Host -foregroundcolor red -backgroundcolor black "Counts do not match"
+    }
+
+    $htgl_pathKeys = @{};
+    Foreach($gn in $xg.gameList.game)
+    {
+        #Strip off extension to get pathTitle, Game Name is not reliable. It can change. path without extension will not
+        $pathStr =  [System.IO.Path]::GetFileNameWithoutExtension($gn.path)
+        if (!$htgl_pathKeys.ContainsKey($pathStr))
+        {
+            $htgl_pathKeys.Add($pathStr, $gn);
+        }
+        else
+        {
+            HandleError "Duplicate Path detected in gameslist.xml > $pathStr" 
+        }
+
+    }#end of Foreach($gameNode in $xg.gameList.game)
+
+
+
+    Write-Host -foregroundcolor green -backgroundcolor black "Please wait, Checking for deletes in gameslist.xml"
+
+    #iterate each mapping game Node and delete if missing from gameslist.xml (manually deleted from gameslist.xml)
+    Foreach($gameNode in $xwm.gameList.game)
+    {
+        $path = $gameNode.path;
+        
+        if (!$htgl_pathKeys.ContainsKey($path))
+        {
+          Write-Host -foregroundcolor red -backgroundcolor black "Removal Detected in gameslist.xml" $gameNode.path;
+          $xwm.gameList.RemoveChild($gameNode);
+          Write-Host -foregroundcolor red -backgroundcolor black "Removed corresponding node from GamesMappingXML";
+        }
+    }
+
+    #iterate each gamslist game Node and add if missing from mapping.xml (newly added to gameslist.xml or first run)
+    Foreach($gn in $xg.gameList.game)
+    {
+        #Strip off extension to get pathTitle, Game Name is not reliable. It can change. path without extension will not
+        $pathStr =  [System.IO.Path]::GetFileNameWithoutExtension($gn.path)
+        if (!$htmp_pathKeys.ContainsKey($pathStr))
+        {
+            Write-Host -foregroundcolor red -backgroundcolor black "Nodie in gameslist.xml not in mapping" $pathStr;
+            [System.Xml.XmlElement] $new_game_node = $xwm.CreateElement("game")
+            $xwm.DocumentElement.AppendChild($new_game_node);
+
+            #path Node
+            $node = $xwm.CreateElement("path")
+            $node.InnerText = $pathStr;
+            $new_game_node.AppendChild($node);
+
+            
+        }
+    }#end of Foreach($gameNode in $xg.gameList.game)
+
+
+    Write-Host -foregroundcolor red -backgroundcolor black "Determing Processing"
+    #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    #Iterate each mapping game Node and Determine Processing Needed for each Node. 
+    #The mapping file will now have knowledge of what is needed, so we can drive processing from it.
+    #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    Foreach($gn in $xwm.gameList.game)
+    {
+        $path = $gn.path;
+        #if ($path -eq "XXX")
+        #{
+            #$T="";
+        #}
+
+        Write-Host -foregroundcolor yellow -backgroundcolor black $path
+
+        #Get Corresponding games list game node
+        $gameNode = $htgl_pathKeys[$path];
+
+        #genre
+        $genre=$gameNode.genre;
+        if ($genre.length -eq 0)
+        {
+            addNeedsMetadataNode $gn "genre"
+        }
+        else
+        {
+            removeNeedsMetadataNode $gn "genre"
+        }
+
+        #desc
+        $desc=$gameNode.desc;
+        if ($desc.length -eq 0)
+        {
+            addNeedsMetadataNode $gn "desc"
+        }
+        else
+        {
+            removeNeedsMetadataNode $gn "desc"
+        }
+
+        #publisher
+        $publisher=$gameNode.publisher;
+        if ($publisher.length -eq 0)
+        {
+            addNeedsMetadataNode $gn "publisher"
+        }
+        else
+        {
+            removeNeedsMetadataNode $gn "publisher"
+        }
+
+        #developer
+        $developer=$gameNode.developer;
+        if ($developer.length -eq 0)
+        {
+            addNeedsMetadataNode $gn "developer"
+        }
+        else
+        {
+            removeNeedsMetadataNode $gn "developer"
+        }
+
+        #releasedate
+        $releasedate=$gameNode.releasedate;
+        if ($releasedate.length -eq 0)
+        {
+            addNeedsMetadataNode $gn "releasedate"
+        }
+        else
+        {
+            removeNeedsMetadataNode $gn "releasedate"
+        }
+
+        #players
+        $players=$gameNode.players;
+        if ($players.length -eq 0)
+        {
+            addNeedsMetadataNode $gn "players"
+        }
+        else
+        {
+            removeNeedsMetadataNode $gn "players"
+        }
+
+        #video
+        $video=$gameNode.video;
+        if ($video.length -eq 0)
+        {
+            addNeedsMediaNode $gn "video"
+        }
+        else
+        {
+            removeNeedsMediaNode $gn "video"
+        }
+
+        #marquee
+        $marquee=$gameNode.marquee;
+        if ($marquee.length -eq 0)
+        {
+            addNeedsMediaNode $gn "marquee"
+        }
+        else
+        {
+            removeNeedsMediaNode $gn "marquee"
+        }
+
+        #image
+        $image=$gameNode.image;
+        if ($image.length -eq 0)
+        {
+            addNeedsMediaNode $gn "image"
+        }
+        else
+        {
+            removeNeedsMediaNode $gn "image"
+        }
+
+
+    }#end of Foreach($gn in $xwm.gameList.game)
+
+
+    #Save Path2GamesMappingXML
+    $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
+    $sw = New-Object System.IO.StreamWriter($global:Path2GamesMappingXML, $false, $utf8)#2nd arg indicates append
+    $xwm.Save($sw);
+    $sw.Close();
+
+
+    Write-Host -foregroundcolor cyan -backgroundcolor black "Leaving gamesDBMapping_Maintenance()"
+
+return;
+}
+
+#*********************************************************************************************************
+#Add Needs MetaData Node. If already exists does nothing.
+#*********************************************************************************************************
+function addNeedsMetadataNode([System.Xml.XmlNode] $gn, [string] $name)
+{
+    [System.Xml.XmlNode] $needsNode = $gn.SelectSingleNode("needs");
+
+    if ($needsNode -eq $null)
+    {
+        $needsNode = $gn.OwnerDocument.CreateElement("needs")
+        $gn.AppendChild($needsNode);
+    }
+    
+    [System.Xml.XmlNode] $metadataNode = $needsNode.SelectSingleNode("metadata");
+
+    if ($metadataNode -eq $null)
+    {
+        $metadataNode = $gn.OwnerDocument.CreateElement("metadata")
+        $needsNode.AppendChild($metadataNode);
+    }
+
+    
+
+    if ($metadataNode.HasAttribute($name) -eq $false)
+    {
+        $attrib = $metadataNode.OwnerDocument.CreateAttribute($name);
+        $metadataNode.Attributes.Append($attrib);
+    }
+
+
+    return;
+}
+
+#*********************************************************************************************************
+#Removes Needs MetaData Node. If already doesn't exist does nothing.
+#*********************************************************************************************************
+function removeNeedsMetadataNode([System.Xml.XmlNode] $gn, [string] $name)
+{
+    [System.Xml.XmlNode] $needsNode = $gn.SelectSingleNode("needs");
+    if ($needsNode -eq $null)
+    {
+        return;
+    }
+    
+    [System.Xml.XmlNode] $metadataNode = $needsNode.SelectSingleNode("metadata");
+    if ($metadataNode -eq $null)
+    {
+        return;
+    }
+
+
+    if ($metadataNode.HasAttribute($name) -eq $false)
+    {
+        return;
+    }
+
+    $attrib = $metadataNode.Attributes[$name];
+    $metadataNode.Attributes.Remove($attrib);
+
+    if ($metadataNode.Attributes.Count -eq 0)
+    {
+        $needsNode.RemoveChild($metadataNode);
+    }
+
+    if ($needsNode.HasChildNodes -eq $false)
+    {
+        $gn.RemoveChild($needsNode);
+    }
+
+    return;
+}
+
+
+#*********************************************************************************************************
+#Add Needs MetaData Node. If already exists does nothing.
+#*********************************************************************************************************
+function addNeedsMediaNode([System.Xml.XmlNode] $gn, [string] $name)
+{
+    [System.Xml.XmlNode] $needsNode = $gn.SelectSingleNode("needs");
+
+    if ($needsNode -eq $null)
+    {
+        $needsNode = $gn.OwnerDocument.CreateElement("needs")
+        $gn.AppendChild($needsNode);
+    }
+    
+    [System.Xml.XmlNode] $mediaNode = $needsNode.SelectSingleNode("media");
+
+    if ($mediaNode -eq $null)
+    {
+        $mediaNode = $gn.OwnerDocument.CreateElement("media")
+        $needsNode.AppendChild($mediaNode);
+    }
+
+    
+
+    if ($mediaNode.HasAttribute($name) -eq $false)
+    {
+        $attrib = $mediaNode.OwnerDocument.CreateAttribute($name);
+        $mediaNode.Attributes.Append($attrib);
+    }
+
+
+    return;
+}
+
+#*********************************************************************************************************
+#Removes Needs MetaData Node. If already doesn't exist does nothing.
+#*********************************************************************************************************
+function removeNeedsMediaNode([System.Xml.XmlNode] $gn, [string] $name)
+{
+    [System.Xml.XmlNode] $needsNode = $gn.SelectSingleNode("needs");
+    if ($needsNode -eq $null)
+    {
+        return;
+    }
+    
+    [System.Xml.XmlNode] $mediaNode = $needsNode.SelectSingleNode("media");
+    if ($mediaNode -eq $null)
+    {
+        return;
+    }
+
+
+    if ($mediaNode.HasAttribute($name) -eq $false)
+    {
+        return;
+    }
+
+    $attrib = $mediaNode.Attributes[$name];
+    $mediaNode.Attributes.Remove($attrib);
+
+
+    if ($mediaNode.Attributes.Count -eq 0)
+    {
+        $needsNode.RemoveChild($mediaNode);
+    }
+
+    if ($needsNode.HasChildNodes -eq $false)
+    {
+        $gn.RemoveChild($needsNode);
+    }
+
+    return;
+}
+
+
+
+#*********************************************************************************************************
+#Scans GamesList XML for a gameNode matching Game File Path
+#*********************************************************************************************************
+function getGameNodeFromGamesListXML([string] $path)
+{
+    $result = New-Object getGameNodeFromGamesListXMLResult;
+
+    [xml] $xg = $null
+    $xg = Get-Content $global:Path2GamesListXML
+    if ($xg -eq $null)
+    {
+        HandleError "Unable to open results xml file $global:Path2GamesListXML as xml"
+    }
+    
+    $result.root=$xg;
+
+    $matching_game_node = $null;
+    Foreach($gn in $xg.gameList.game)
+    {
+        #Strip off extension to get pathTitle, Game Name is not reliable. It can change. path without extension will not
+        $pathStr =  [System.IO.Path]::GetFileNameWithoutExtension($gn.path)
+        if ($pathStr -eq $path)
+        {
+            $result.matching_game_node=$gn;
+            return $result;
+        }
+    }#end of Foreach($gameNode in $xg.gameList.game)
+
+    return $null;
+}
 
 
 #sample
@@ -319,7 +745,7 @@ function APIGetGameList([string] $gameName, [string] $pathStr)
 
     Write-Host $url
 
-    $TargetDir = "$global:Path2DownloadDir" + "$global:PlatformStr\" + "ByGameName\"
+    $TargetDir = $global:Path2DownloadDir + $global:PlatformStr +"\ByGameName\"
 
     $retVal = Test-Path -LiteralPath  $TargetDir -PathType Container #LiteralPath is required to stop interpreting special characters like ![], etc.
     if ($retVal -eq $false)
@@ -348,7 +774,7 @@ function APIGetGameList([string] $gameName, [string] $pathStr)
 #sample
 #https://api.thegamesdb.net/Games/ByGameID?apikey=1&id=1
 # ****************************************************************************************************************************
-#Pass a GameNode from  gamesDBMapping.xml
+#Pass a GameNode from theGamesdbMapping.xml
 #
 #Writes web page response json file to $global:Path2DownloadDir\ByGameID ONLY if it does not already exist there.
 #Also downloads Image ScreenShot and ClearLogo for Marquee
@@ -405,15 +831,28 @@ function API_GetGameByGameID([System.Xml.XmlElement] $gameNode)
     $json_game_title = makeASCIIStr $jsonGame.game_title;
     $descStr = $jsonGame.overview;#Strip out Foreign Chars
     $json_asciiDescStr = makeASCIIStr $descStr
-    [string] $genre_KeyStr = $jsonGame.genres[0];
-    [string] $json_genreStr= $global:ht_APIGenres[$genre_KeyStr].name;
 
-    $json_releaseDate = $null;
+    [string] $genre_KeyStr = "";
+    if ($jsonGame.genres.length -gt 0)
+    {
+        $genre_KeyStr = $jsonGame.genres[0];
+    }
+
+    [string] $json_genreStr = "";
+    if ($genre_KeyStr.Length -gt 0)
+    {
+        $json_genreStr = $global:ht_APIGenres[$genre_KeyStr].name;
+    }
+
+    [string] $json_releaseDate = $null;
     $json_releaseDate = $jsonGame.release_date;
     if ($json_releaseDate -ne $null)
     {
-        [DateTime] $dt = [DateTime] $json_releaseDate;
-        $json_releaseDate = $dt.ToString("yyyyMMddT000000")
+        if ($json_releaseDate.Length -gt 0)
+        {
+            [DateTime] $dt = [DateTime] $json_releaseDate;
+            $json_releaseDate = $dt.ToString("yyyyMMddT000000");
+        }
     }
 
     [string] $json_players = "";
@@ -423,14 +862,34 @@ function API_GetGameByGameID([System.Xml.XmlElement] $gameNode)
     }
 
 
+    [string] $publisher_KeyStr = "";
+    if ($jsonGame.publishers.length -gt 0)
+    {
+        $publisher_KeyStr = $jsonGame.publishers[0];
+    }
 
-    [string] $publisher_KeyStr = $jsonGame.publishers[0];
-    [string] $json_publisherStr= $global:ht_APIPublishers[$publisher_KeyStr].name;
-    $json_publisherStr = makeASCIIStr $json_publisherStr;
+    [string] $json_publisherStr = "";
+    if ($publisher_KeyStr.Length -gt 0)
+    {
+        $json_publisherStr= $global:ht_APIPublishers[$publisher_KeyStr].name;
+        $json_publisherStr = makeASCIIStr $json_publisherStr;
+    }
+    
 
-    [string] $devloper_KeyStr = $jsonGame.developers[0];
-    [string] $json_developerStr= $global:ht_APIDevelopers[$devloper_KeyStr].name;
-    $json_developerStr = makeASCIIStr $json_developerStr;
+    [string] $devloper_KeyStr = "";
+    if ($jsonGame.developer.length -gt 0)
+    {
+        $devloper_KeyStr = $jsonGame.developers[0];
+    }
+
+    [string] $json_developerStr = "";
+    if ($devloper_KeyStr.Length -gt 0)
+    {
+        $json_developerStr= $global:ht_APIDevelopers[$devloper_KeyStr].name;
+        $json_developerStr = makeASCIIStr $json_developerStr;
+    }
+
+    
 
 
     Write-Host -foregroundcolor green -backgroundcolor black "Title: $json_game_title"
@@ -446,28 +905,13 @@ function API_GetGameByGameID([System.Xml.XmlElement] $gameNode)
     #First Make a backup copy from BEFORE our EDITS and put in game dir. This way we can always ROLLBACK if something goes wrong.
     Copy-Item -LiteralPath $global:Path2GamesListXML -Destination $TargetGameDir
 
-    [xml] $xg = $null
-    $xg = Get-Content $global:Path2GamesListXML
-    if ($xg -eq $null)
+    $result = getGameNodeFromGamesListXML $gameNode.path;
+    if ($result -eq $null)
     {
-        HandleError "Unable to open results xml file $global:Path2GamesListXML as xml"
-    }
-
-    $matching_game_node = $null;
-    Foreach($gameNode in $xg.gameList.game)
-    {
-        #Strip off extension to get pathTitle, Game Name is not reliable. It can change. path without extension will not
-        $pathStr =  [System.IO.Path]::GetFileNameWithoutExtension($gameNode.path)
-        if ($pathStr -eq $path)
-        {
-            $matching_game_node = $gameNode;
-        }
-    }#end of Foreach($gameNode in $xg.gameList.game)
-
-    if ($matching_game_node -eq $null)
-    {
+        Write-Host $path
         HandleError "Unable to find matching game node in games.xml"
     }
+    $matching_game_node=$result.matching_game_node;
 
     #If we are here we have the game node to edit
 
@@ -484,7 +928,7 @@ function API_GetGameByGameID([System.Xml.XmlElement] $gameNode)
     #desc Node
     if ($matching_game_node.desc.count -lt 1) #Only Add if not there
     {
-        $node = $xg.CreateElement("desc")
+        $node = $result.root.CreateElement("desc")
         $matching_game_node.AppendChild($node);
     }
 
@@ -495,30 +939,37 @@ function API_GetGameByGameID([System.Xml.XmlElement] $gameNode)
 
 
     #genre Node
-    if ($matching_game_node.genre.count -lt 1)
-    {#Only Add if not there
-        Write-Host -foregroundcolor red -backgroundcolor black "genreStr: $genreStr"
-        $node = $xg.CreateElement("genre")
-        
-        $matching_game_node.AppendChild($node);
+    if ($json_genreStr.Length -gt 0)
+    {
+        if ($matching_game_node.genre.count -lt 1)
+        {#Only Add if not there
+            Write-Host -foregroundcolor red -backgroundcolor black "genreStr: $genreStr"
+            $node = $result.root.CreateElement("genre")
+            $matching_game_node.AppendChild($node);
+        }
+
+        if ($matching_game_node.genre.length -eq 0)
+        {
+            $matching_game_node.genre = $json_genreStr;
+        }
     }
 
-    if ($matching_game_node.genre.length -eq 0)
-    {
-        $matching_game_node.genre = $json_genreStr;
-    }
+
     
 
     #releasedate
-    if ($matching_game_node.releasedate.count -lt 1)
-    {#Only Add if not there
-        $node = $xg.CreateElement("releasedate")
-        $matching_game_node.AppendChild($node);
-    }
-
-    if ($matching_game_node.releasedate.length -eq 0)
+    if ($json_releaseDate.Length -gt 0)
     {
-        $matching_game_node.releasedate = $json_releaseDate;
+        if ($matching_game_node.releasedate.count -lt 1)
+        {#Only Add if not there
+            $node = $result.root.CreateElement("releasedate")
+            $matching_game_node.AppendChild($node);
+        }
+
+        if ($matching_game_node.releasedate.length -eq 0)
+        {
+            $matching_game_node.releasedate = $json_releaseDate;
+        }
     }
 
 
@@ -527,7 +978,7 @@ function API_GetGameByGameID([System.Xml.XmlElement] $gameNode)
     {#Only Add if not there
         if ($json_players.length -gt 0)
         {
-            $node = $xg.CreateElement("players")
+            $node = $result.root.CreateElement("players")
             $matching_game_node.AppendChild($node);
         }
     }
@@ -541,24 +992,30 @@ function API_GetGameByGameID([System.Xml.XmlElement] $gameNode)
 
     #publisher
 
-    if ($matching_game_node.publisher.count -lt 1)
-    {#Only Add if not there
-        $node = $xg.CreateElement("publisher")
-        $matching_game_node.AppendChild($node);
-    }
 
-    $matching_game_node.publisher = $json_publisherStr;
+    if ($json_publisherStr.Length -gt 0)
+    {
+        if ($matching_game_node.publisher.count -lt 1)
+        {#Only Add if not there
+            $node = $result.root.CreateElement("publisher")
+            $matching_game_node.AppendChild($node);
+        }
+
+        $matching_game_node.publisher = $json_publisherStr;
+    }
 
     #developer
 
+    if ($json_developerStr.Length -gt 0)
+    {
+        if ($matching_game_node.developer.count -lt 1)
+        {#Only Add if not there
+            $node = $result.root.CreateElement("developer")
+            $matching_game_node.AppendChild($node);
+        }
 
-    if ($matching_game_node.developer.count -lt 1)
-    {#Only Add if not there
-        $node = $xg.CreateElement("developer")
-        $matching_game_node.AppendChild($node);
+        $matching_game_node.developer = $json_developerStr;
     }
-
-    $matching_game_node.developer = $json_developerStr;
 
 
     #Write a GameNode in Games.xml Format In this Dir as If we were going to copy and paste it, so we can view on it's own.
@@ -566,7 +1023,7 @@ function API_GetGameByGameID([System.Xml.XmlElement] $gameNode)
 
     $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
     $sw = New-Object System.IO.StreamWriter($global:Path2GamesListXML, $false, $utf8)#2nd arg indicates append
-    $xg.Save($sw);
+    $result.root.Save($sw);
     $sw.Close();
 
     return;
@@ -632,7 +1089,7 @@ function saveLocalGamesXML([string] $TargetGameDir, [System.XML.XmLElement] $gn)
 #sample
 #https://api.thegamesdb.net/Games/Images?apikey=1&games_id=1
 # ****************************************************************************************************************************
-#Pass a GameNode from  gamesDBMapping.xml
+#Pass a GameNode from  theGamesdbMapping.xml
 #
 #Writes web page response json file to $global:Path2DownloadDir\Images ONLY if it does not already exist there.
 #Also downloads Image ScreenShot and ClearLogo for Marquee
@@ -691,37 +1148,19 @@ function API_GetGameImages([System.Xml.XmlElement] $gameNode)
 
 
     #Open Target RetroPI GamesList.xml so we can edit >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    #First Make a backup copy from BEFORE our EDITS and put in game dir. This way we can always ROLLBACK if something goes wrong.
-    Copy-Item -LiteralPath $global:Path2GamesListXML -Destination $TargetGameDir
-
-    [xml] $xg = $null
-    $xg = Get-Content $global:Path2GamesListXML
-    if ($xg -eq $null)
+    $result = getGameNodeFromGamesListXML $gameNode.path;
+    if ($result -eq $null)
     {
-        HandleError "Unable to open results xml file $global:Path2GamesListXML as xml"
-    }
-
-    $matching_game_node = $null;
-    Foreach($gameNode in $xg.gameList.game)
-    {
-        #Strip off extension to get pathTitle, Game Name is not reliable. It can change. path without extension will not
-        $pathStr =  [System.IO.Path]::GetFileNameWithoutExtension($gameNode.path)
-        if ($pathStr -eq $path)
-        {
-            $matching_game_node = $gameNode;
-        }
-    }#end of Foreach($gameNode in $xg.gameList.game)
-
-    if ($matching_game_node -eq $null)
-    {
+        Write-Host $path
         HandleError "Unable to find matching game node in games.xml"
     }
+    $matching_game_node=$result.matching_game_node;
 
     #If we are here we have the game node to edit
 
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #IMAGE PROCESSING 
+    #MARQUEE PROCESSING 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -763,6 +1202,47 @@ function API_GetGameImages([System.Xml.XmlElement] $gameNode)
     }
 
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #SCREEN IMAGE PROCESSING 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+    #Download  clearlogo (We can use as Marquee) >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    if ($matching_game_node.screen.count -lt 1)
+    {
+        $boxart = $null;
+        foreach ($img in $imgsArrJSON)
+        {
+            if ($img.type -eq "boxart" -and $img.side -eq "front")
+            {
+                $boxart=$img;
+                break;
+            }
+        }
+
+
+        if ($boxart -ne $null)
+        {
+            $BoxArtURL = $baseImgURL+$boxart.filename;
+            $extension = [System.IO.Path]::GetExtension($BoxArtURL);
+    
+            $ImageFname = $path + $extension;
+            $TargetFile = $global:imageDir + "cover\"+ $ImageFname;
+
+            $retVal = Test-Path -LiteralPath  $TargetFile -PathType leaf #LiteralPath is required to stop interpreting special characters like ![], etc.
+            if ($retVal -ne $true)
+            {
+                #If here Download The Game List File
+                Write-Host "SOURCE"
+                Write-Host -foregroundcolor cyan -backgroundcolor black $BoxArtURL
+                Write-Host "TARGET"
+                Write-Host -foregroundcolor cyan -backgroundcolor black $TargetFile
+                $webclient = new-object System.Net.WebClient
+                $webclient.DownloadFile($BoxArtURL, $TargetFile)
+            }
+        }#end of if ($clearLogo -ne $null)
+    }
+
 
     return;
 }
@@ -789,274 +1269,6 @@ function makeASCIIStr([string] $in_str)
     return $asciiDescStr;
 }
 
-
-
-#http://thegamesdb.net/banners/clearlogo/328.png
-
-# ****************************************************************************************************************************
-#Scans Emulation Station GamesList.xml for GameNodes that Have Missing Marquee.
-#Using name it calls ByGameName() to get Possible Game List Match Files from GamesDB.NET
-#The Game List Possible Match json Files are Stored under Downlooads\thegamesdb\PlatFormName\ByGameID and ONLY downloaded if they don't already exist.
-# ****************************************************************************************************************************
-function ScanGamesList_XML()
-{
-    Write-Host -foregroundcolor green -backgroundcolor black "ScanGamesList_XML()"
-    Write-Host -foregroundcolor green -backgroundcolor black "Looking for GameNodes that Have Missing Genre. Using name it calls APIGetGameList() to get Possible Game List Match Files."
-    Write-Host
-
-    #Open Results File as XML
-    [xml] $xw = $null
-    $xw = Get-Content $global:Path2GamesListXML
-    if ($xw -eq $null)
-    {
-        HandleError "Unable to open results xml file $global:Path2GamesListXML as xml"
-    }
-
-    $missingGamesPaths=0
-    $missingVids=0
-    $missingImgs=0
-
-    Write-Host -foregroundcolor green -backgroundcolor black $xw.gameList.game.Count " games in gamelist.xml"
-
-    #iterate each game Node
-    Foreach($gameNode in $xw.gameList.game)
-    {
-        if ($gameNode.desc.count -ne 1)
-        {
-            "Marquee Missing"
-            $gameNode
-            $gameName = $gameNode.name;
-            $pathStr = [System.IO.Path]::GetFileNameWithoutExtension($gameNode.path); ; #Save the File with Path Name not game Name, Game Name can change. Path for Rom Name cannot and is the key we use to match back to game node in games.xml
-            APIGetGameList $gameName $pathStr
-        }
-
-
-    }#end of Foreach($gameNode in $xw.gameList.game)
-
-    
-    Write-Host -foregroundcolor green -backgroundcolor black "Missing Files Pointed to by GamePaths Count:" $missingGamesPaths
-    Write-Host -foregroundcolor green -backgroundcolor black "Missing Video Node Count:" $missingVids
-    Write-Host -foregroundcolor green -backgroundcolor black "Missing Image Node Count:" $missingImgs
-
-    Write-Host -foregroundcolor green -backgroundcolor black "Leaving ScanGamesList_XML"
-    Write-Host
-}
-
-#*****************************************************************************************************************************************
-#Iterate Game List Files. Prompt user to select a match or skip. Call GetGame() with selected ID to Download by Game ID, then Insert that Info into gamesDBMapping.xml
-#In the title of the displayed GridView I will display Source Name, Click cancel to skip, or select row and OK to get Download Game Info and use meta data, etc.
-#*****************************************************************************************************************************************
-function gamesDBMapping($PlatformStr)
-{
-    Write-Host -foregroundcolor green -backgroundcolor black "gamesDBMapping()"
-
-
-    [xml] $xw = $null
-    $xw = Get-Content $global:Path2GamesMappingXML
-    if ($xw -eq $null)
-    {
-        HandleError "Unable to open Path2GamesMappingXML xml file $global:Path2GamesMappingXML as xml"
-    }
-    [System.Xml.XmlElement] $gameListNode = $xw.DocumentElement;
-
-
-    $gamesListsPath = "$global:Path2DownloadDir" + $PlatformStr + "\ByGameName\"
-
-    $FilesArr = get-childitem -Recurse -Path $gamesListsPath -include *.json
-    Write-Host -foregroundcolor green -backgroundcolor black $FilesArr.Length " Games Lists xmls"
-
-
-    #Iterate Each json file in $FilesArr >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    foreach($file in $FilesArr)
-    {
-        $FileName = $file.Name
-        $fileTitle = [System.IO.Path]::GetFileNameWithoutExtension($FileName)
-        $FullName = $file.FullName
-
-        Write-Host "Finding Match For"
-        Write-Host -foregroundcolor cyan -backgroundcolor black $fileTitle
-
-        if (!(Test-Path -LiteralPath $FullName))
-            {
-                HandleError("$FullName does not exist") #If this happens signal problem!
-                exit
-            }
-
-        #Did we already set a matching GameID for this?
-        $matching_game_node = $null;
-        Foreach($gameNode in $xw.gameList.game)
-        {
-            #Strip off extension to get pathTitle, Game Name is not reliable. It can change. path without extension will not
-            $pathStr =  [System.IO.Path]::GetFileNameWithoutExtension($gameNode.path)
-            if ($pathStr -eq $fileTitle)
-            {
-                $matching_game_node = $gameNode;
-            }
-        }#end of Foreach($gameNode in $xg.gameList.game)
-
-        if ($matching_game_node -eq $null)
-        {
-            Write-Host "Creating Match Node"
-            [System.Xml.XmlElement] $game_node = $xw.CreateElement("game")
-            $gameListNode.AppendChild($game_node);
-
-            #path Node
-            $node = $xw.CreateElement("path")
-            $node.InnerText = $fileTitle;
-            $game_node.AppendChild($node);
-
-            #game_title Node
-            $node = $xw.CreateElement("game_title")
-            $game_node.AppendChild($node);
-
-            #game_title Node
-            $node = $xw.CreateElement("id")
-            $game_node.AppendChild($node);
-
-            $node = $xw.CreateElement("release_date")
-            $game_node.AppendChild($node);
-
-
-            $matching_game_node=$game_node;
-        }#end of if ($matching_game_node -eq $null)
-
-        if ($matching_game_node.id.Length -eq 0) #This means selection was never made!
-        {
-            Write-Host "Creating Match"
-            #Open json Game List File
-            $json = $null
-            $json = Get-Content -LiteralPath $FullName | ConvertFrom-Json
-            if ($json -eq $null)
-            {
-                HandleError "Unable to open results json file $FullName as json"
-            }
-
-            if ($json.data.games.length -eq 0)
-            {
-                $matching_game_node.id="-1";#-1 Means no selection from Games DB
-                #Save Mapping XML with User Selections for Game ID's
-                $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
-                $sw = New-Object System.IO.StreamWriter($global:Path2GamesMappingXML, $false, $utf8)#2nd arg indicates append
-                $xw.Save($sw);
-                $sw.Close();
-                continue;
-            }
-
-            if ($json.data.games.length -eq 1)#Auto Select
-            {
-                $game = $json.data.games[0];
-            }
-            else
-            {
-                #Prompt with Grid View for user to make a selection
-                $game = $null;
-                $titleStr = "select match for " + $fileTitle + " or cancel to skip (no match)"
-                $game = $json.data.games | Out-GridView -OutputMode Single -Title $titleStr
-            }
-
-
-            if ($game -ne $null)
-            {
-                #If here a selection was made!
-                $gameIDStr = $game.id;
-                $gameTitle = $game.game_title;
-
-                $matching_game_node.game_title=$gameTitle;
-                $matching_game_node.id="$gameIDStr";
-                $matching_game_node.release_date=$game.release_date;
-
-                #Save Mapping XML with User Selections for Game ID's
-                $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
-                $sw = New-Object System.IO.StreamWriter($global:Path2GamesMappingXML, $false, $utf8)#2nd arg indicates append
-                $xw.Save($sw);
-                $sw.Close();
-
-                Write-Host -foregroundcolor cyan -backgroundcolor black "You selected $gameIDStr"
-            }
-            else
-            {
-                Write-Host "No Match Found"
-                #If here skipped no match, move games list xml file to skippedGamesListsFolder
-                $matching_game_node.id="-2";#-1 Means no selection made or skipped
-
-                #Save Mapping XML with User Selections for Game ID's
-                $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
-                $sw = New-Object System.IO.StreamWriter($global:Path2GamesMappingXML, $false, $utf8)#2nd arg indicates append
-                $xw.Save($sw);
-                $sw.Close();
-
-                Write-Host -foregroundcolor cyan -backgroundcolor black "No Selection Made, Skipping Selection List File"
-            }
-            
-        }#end of if ($matching_game_node.id.Length -eq 0)
-
-
-    }#END OF iterate Each $FilesArr >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-
-
-   Write-Host -foregroundcolor green -backgroundcolor black "Leaving gamesDBMapping"
-}
-
-#*****************************************************************************************************************************************
-#Iterate gamesDBMapping List Files. 
-#*****************************************************************************************************************************************
-function GetMetaData()
-{
-Write-Host -foregroundcolor green -backgroundcolor black "GetMetaData() for $global:PlatformStr"
-
-GetGamesDBCommonTables #Genres, Developers, Publishers
-
-    [xml] $xr = $null
-    $xr = Get-Content $global:Path2GamesMappingXML
-    if ($xr -eq $null)
-    {
-        HandleError "Unable to open Path2GamesMappingXML xml file $global:Path2GamesMappingXML as xml"
-    }
-
-
-    #iterate each game Node
-    Foreach($gameNode in $xr.gameList.game)
-    {
-        [int] $id = $gameNode.id;
-        if ($id -gt 0)
-        {
-            API_GetGameByGameID $gameNode
-        }
-    }
-
-
-    Write-Host -foregroundcolor green -backgroundcolor black "Leaving GetMetaData()"
-}
-
-#*****************************************************************************************************************************************
-#Iterate gamesDBMapping List Files. 
-#*****************************************************************************************************************************************
-function GetImages()
-{
-Write-Host -foregroundcolor green -backgroundcolor black "GetImages() for $global:PlatformStr"
-
-    [xml] $xr = $null
-    $xr = Get-Content $global:Path2GamesMappingXML
-    if ($xr -eq $null)
-    {
-        HandleError "Unable to open Path2GamesMappingXML xml file $global:Path2GamesMappingXML as xml"
-    }
-
-
-    #iterate each game Node
-    Foreach($gameNode in $xr.gameList.game)
-    {
-        [int] $id = $gameNode.id;
-        if ($id -gt 0)
-        {
-            API_GetGameImages $gameNode
-        }
-    }
-
-
-    Write-Host -foregroundcolor green -backgroundcolor black "Leaving GetMetaData()"
-}
 
 
 #*****************************************************************************************************************************************
@@ -1154,26 +1366,253 @@ function GetGamesDBCommonTables()
 
 }
 
+
+#*****************************************************************************************************************************************
+#Iterate Mapping game List.
+# Prompt user to select a match or skip. Call GetGame() with selected ID to Download by Game ID, then Insert that Info into theGamesdbMapping.xml
+#In the title of the displayed GridView I will display Source Name, Click cancel to skip, or select row and OK to get Download Game Info and use meta data, etc.
+#*****************************************************************************************************************************************
+function getGameIDs()
+{
+    $gamesListsPath = "$global:Path2DownloadDir" + $global:PlatformStr + "\ByGameName\"
+    Write-Host -foregroundcolor green -backgroundcolor black "getGameIDs() $gamesListsPath"
+
+    #Open Path2GamesMappingXML
+    [xml] $xwm = $null
+    $xwm = Get-Content $global:Path2GamesMappingXML
+    if ($xwm -eq $null)
+    {
+        HandleError "Unable to open Path2GamesMappingXML xml file $global:Path2GamesMappingXML as xml"
+    }
+
+    #iterate each gamslist mapping game Node
+    #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    Foreach($gn in $xwm.gameList.game)
+    {
+        [System.Xml.XmlNode] $needsNode = $gn.SelectSingleNode("needs");
+
+        if ($needsNode -eq $null)
+        {
+            continue;#Nothing to Process
+        }
+
+        #Do we have gameID yet?
+        $id = $gn.id;
+        if ($id.length -gt 0)
+        {
+            continue;#We have already attempted to get an ID.
+        }
+
+        #If here we need the GameID
+        $path =  $gn.path
+        $name =  $gn.game_title
+
+        if ($name.Length -eq 0)
+        {
+            $name=$path;
+        }
+
+        $ByGameNameJSON = $gamesListsPath + $path + ".json";
+        if (!(Test-Path -LiteralPath $ByGameNameJSON))
+        {
+            APIGetGameList $name $path #Download ByGameName json File, unless it already exists.
+        }
+
+        if (!(Test-Path -LiteralPath $ByGameNameJSON))
+        {
+           HandleError("$ByGameNameJSON does not exist") #If still not here signal problem!
+        }
+
+        Write-Host "Creating Game ID Match For"
+        Write-Host -foregroundcolor cyan -backgroundcolor black $path
+
+        #id Node
+        [System.Xml.XmlNode] $IDNode = $gn.SelectSingleNode("id");
+        if ($IDNode -eq $null)
+        {
+            $IDNode = $gn.OwnerDocument.CreateElement("id")
+            $gn.AppendChild($IDNode);
+        }
+
+
+        #Open json Game List File
+        $json = $null
+        $json = Get-Content -LiteralPath $ByGameNameJSON | ConvertFrom-Json
+        if ($json -eq $null)
+        {
+            HandleError "Unable to open results json file $FullName as json"
+        }
+
+        if ($json.data.games.length -eq 0)
+        {
+            Write-Host -foregroundcolor red -backgroundcolor black "0 possible matches returned from games db! Setting game ID to -1"
+            #If we are here there is NOTHING to choose from!
+            $IDNode.InnerText="-1";#-1 Means no selections to choose from at Games DB
+            $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
+            $sw = New-Object System.IO.StreamWriter($global:Path2GamesMappingXML, $false, $utf8)#2nd arg indicates append
+            $xwm.Save($sw);
+            $sw.Close();
+            continue;
+        }
+
+        #Never Auto Select even if it only comes back with one match. Sometimes what it comes back with is crap!
+        #Prompt with Grid View for user to make a selection
+        $game = $null;
+        $titleStr = "select match for " + $path + " or cancel to skip (no match)"
+        $game = $json.data.games | Out-GridView -OutputMode Single -Title $titleStr
+
+
+        if ($game -ne $null)
+        {
+            #If here a selection was made!
+            Write-Host -foregroundcolor cyan -backgroundcolor black "You selected $gameIDStr"
+
+            $IDNode.InnerText= $game.id;
+            
+
+            #game_title Node
+            [System.Xml.XmlNode] $GameTitleNode = $gn.SelectSingleNode("game_title");
+            if ($GameTitleNode -eq $null)
+            {
+                $GameTitleNode = $gn.OwnerDocument.CreateElement("game_title")
+                $gn.AppendChild($GameTitleNode);
+            }
+            $GameTitleNode.InnerText= $game.game_title;
+
+
+
+            #release_date node
+            [System.Xml.XmlNode] $rdNode = $gn.SelectSingleNode("release_date");
+            if ($rdNode -eq $null)
+            {
+                $rdNode = $gn.OwnerDocument.CreateElement("release_date")
+                $gn.AppendChild($rdNode);
+            }
+            $rdNode.InnerText= $game.release_date;
+
+        }
+        else
+        {
+            Write-Host -foregroundcolor red -backgroundcolor black "Cancelled. No valid match returned from games db! Setting game ID to -2"
+            #If here skipped no match, move games list xml file to skippedGamesListsFolder
+            $IDNode.InnerText= -2;#-2 Means Cancelled by User
+
+        }
+
+        #Save Mapping XML with User Selections for Game ID's
+        $utf8 = New-Object System.Text.UTF8Encoding($false) #$false or #true to indicate if BOM is included.
+        $sw = New-Object System.IO.StreamWriter($global:Path2GamesMappingXML, $false, $utf8)#2nd arg indicates append
+        $xwm.Save($sw);
+        $sw.Close();
+
+    }#end of Foreach($gameNode in $xg.gameList.game)
+
+   Write-Host -foregroundcolor green -backgroundcolor black "Leaving getGameIDs()"
+}
+
+#*****************************************************************************************************************************************
+#Iterate gamesDBMapping List Files. 
+#*****************************************************************************************************************************************
+function GetMetaData()
+{
+Write-Host -foregroundcolor green -backgroundcolor black "GetMetaData() for $global:PlatformStr"
+
+GetGamesDBCommonTables #Genres, Developers, Publishers
+
+    [xml] $xr = $null
+    $xr = Get-Content $global:Path2GamesMappingXML
+    if ($xr -eq $null)
+    {
+        HandleError "Unable to open Path2GamesMappingXML xml file $global:Path2GamesMappingXML as xml"
+    }
+
+
+    #iterate each game Node
+    Foreach($gameNode in $xr.gameList.game)
+    {
+        [System.Xml.XmlNode] $needsNode = $gameNode.SelectSingleNode("needs");
+        if ($needsNode -eq $null)
+        {
+            continue;#nothing needed
+        }
+
+        [System.Xml.XmlNode] $metadataNode = $needsNode.SelectSingleNode("metadata");
+        if ($metadataNode -eq $null)
+        {
+            continue;#No metadata needed
+        }
+
+        #If here we need metadata
+
+        [int] $id = $gameNode.id;
+        if ($id -gt 0)#Without a game ID nothing we can do
+        {
+            API_GetGameByGameID $gameNode
+        }
+    }
+
+
+    Write-Host -foregroundcolor green -backgroundcolor black "Leaving GetMetaData()"
+}
+
+#*****************************************************************************************************************************************
+#Iterate gamesDBMapping List Files. 
+#*****************************************************************************************************************************************
+function GetImages()
+{
+Write-Host -foregroundcolor green -backgroundcolor black "GetImages() for $global:PlatformStr"
+
+    [xml] $xr = $null
+    $xr = Get-Content $global:Path2GamesMappingXML
+    if ($xr -eq $null)
+    {
+        HandleError "Unable to open Path2GamesMappingXML xml file $global:Path2GamesMappingXML as xml"
+    }
+
+
+    #iterate each game Node
+    Foreach($gameNode in $xr.gameList.game)
+    {
+        [System.Xml.XmlNode] $needsNode = $gameNode.SelectSingleNode("needs");
+        if ($needsNode -eq $null)
+        {
+            continue;#nothing needed
+        }
+
+        [System.Xml.XmlNode] $mediaNode = $needsNode.SelectSingleNode("media");
+        if ($mediaNode -eq $null)
+        {
+            continue;#No metadata needed
+        }
+
+
+        [int] $id = $gameNode.id;
+        if ($id -gt 0)
+        {
+            API_GetGameImages $gameNode
+        }
+    }
+
+
+    Write-Host -foregroundcolor green -backgroundcolor black "Leaving GetMetaData()"
+}
+
+
 #*****************************************************************************************************************************************
 #Main Execution Begins Here
 #*****************************************************************************************************************************************
 Clear-Host
 
 InitReg
-AksUserPlatform
-InitDirs $global:PlatformStr #Create Base Dirs, needs PlatformStr set 1st.
+AksUserPlatform #Must be called once, then can be commented out until you want to change platform.
+InitDirs #Create Base Dirs, needs PlatformStr set 1st.
 
+AskUserGamesListXML #Must be called once, then can be commented out until you want to change platform.
 
-AskUserGamesListXML
-
-
-
-
-#Step 1 Run ScanGamesList_XML with everything else commented out to create all game lists files, for reach game that we need to determine GameID
-ScanGamesList_XML
+gamesDBMapping_Maintenance #Should always be called. Add/Remove Nodes corresponding to gameslist.xml, into mapping.
 
 #Step 2 coment out step 1
-gamesDBMapping $global:PlatformStr #Thru User Interaction get GameID's into gamesDBMapping.xml
+getGameIDs #Thru User Interaction get GameID's into theGamesdbMapping.xml
 
 
 #Step 3 coment out step 1 and 2
